@@ -46,7 +46,7 @@ function money(value: number) {
 }
 
 type CycleResult = {
-  status: 'staged';
+  status: 'staged' | 'submitted';
   executionEnabled: boolean;
   receiptId: string;
   generatedAt: string;
@@ -73,8 +73,20 @@ type CycleResult = {
     evaluatedCandidates: number;
     chainTruncated: boolean;
     orderPayload: unknown;
-    orderSubmitted: false;
+    orderSubmitted: boolean;
     reason: string;
+    brokerOrder: null | {
+      id: string;
+      client_order_id?: string;
+      status: string;
+      created_at?: string;
+      submitted_at?: string;
+      filled_at?: string | null;
+      filled_qty?: string;
+      limit_price?: string;
+      order_class?: string;
+      legs?: Array<{ id?: string; symbol?: string; side?: string; status?: string }>;
+    };
   };
 };
 
@@ -143,7 +155,7 @@ export default function Home() {
     { Icon: Clock3, time: eventTime, title: 'Mandate validated', detail: `Stress −${shock}% · budget ${money(budget)}`, status: 'SCHEMA VALID' },
     { Icon: Activity, time: eventTime, title: 'Live Alpaca data read', detail: `QQQ ${money(cycle.market.spot)} · ${cycle.market.feed}`, status: cycle.market.isOpen ? 'MARKET OPEN' : 'MARKET CLOSED' },
     { Icon: TriangleAlert, time: eventTime, title: 'Candidates screened', detail: `${cycle.audit.scannedContracts} contracts · ${cycle.audit.evaluatedCandidates} valid spreads`, status: 'FAIL-CLOSED GATES' },
-    { Icon: FileCheck2, time: eventTime, title: 'Paper order staged', detail: `${cycle.proposal.long.symbol} / ${cycle.proposal.short.symbol} · debit $${cycle.proposal.netDebit.toFixed(2)}`, status: 'NOT SUBMITTED' },
+    { Icon: FileCheck2, time: eventTime, title: cycle.audit.orderSubmitted ? 'Paper order accepted' : 'Paper order staged', detail: `${cycle.proposal.long.symbol} / ${cycle.proposal.short.symbol} · debit $${cycle.proposal.netDebit.toFixed(2)}`, status: cycle.audit.orderSubmitted ? `ALPACA ${cycle.audit.brokerOrder?.status.toUpperCase() ?? 'ACCEPTED'}` : 'NOT SUBMITTED' },
   ] : [
     { Icon: Clock3, time: '--:--:--', title: 'Mandate ready', detail: `Stress −${shock}% · budget ${money(budget)}`, status: 'AWAITING CYCLE' },
   ];
@@ -205,7 +217,7 @@ export default function Home() {
           maxHedgeCost: Math.round(candidate.maxHedgeCost / 25) * 25,
           mandate: candidate.mandate,
         });
-        return { status: result.status, receiptId: result.receiptId, hedge: result.proposal.strategy, policyGatesPassed: result.gates.filter((gate) => gate.passed).length, orderSubmitted: false };
+        return { status: result.status, receiptId: result.receiptId, hedge: result.proposal.strategy, policyGatesPassed: result.gates.filter((gate) => gate.passed).length, orderSubmitted: result.audit.orderSubmitted, brokerOrderId: result.audit.brokerOrder?.id ?? null };
       },
     }, { signal: lifecycle.signal })).catch(() => undefined);
 
@@ -259,7 +271,7 @@ export default function Home() {
               <div><div className="mb-3 flex items-center justify-between text-sm"><span className="text-[#a8afb9]">Maximum hedge cost</span><span className="font-mono text-[#d7ff45]">{money(budget)}</span></div><Slider min={100} max={800} step={25} value={[budget]} onValueChange={(value) => setBudget(Number(value))} className="[&_[data-slot=slider-range]]:bg-[#d7ff45]" /><div className="mt-2 flex justify-between font-mono text-[10px] text-[#555c67]"><span>$100</span><span>$800</span></div></div>
             </div>
             <div className="my-5 h-px bg-white/[0.07]" />
-            <div className="flex items-center justify-between"><div><p className="text-sm font-medium">Execution safeguard</p><p className="mt-1 text-xs text-[#737b87]">Stage only · no order submission</p></div><Switch checked={false} disabled aria-label="Paper execution disabled" className="data-checked:bg-[#d7ff45]" /></div>
+            <div className="flex items-center justify-between"><div><p className="text-sm font-medium">Production safeguard</p><p className="mt-1 text-xs text-[#737b87]">Stage only · 2 Paper submissions tested</p></div><Switch checked={false} disabled aria-label="Production Paper execution disabled" className="data-checked:bg-[#d7ff45]" /></div>
             <Button onClick={runCycle} disabled={phase === 'running'} className="mt-5 h-11 w-full bg-[#d7ff45] font-semibold text-[#0a0b0d] hover:bg-[#e3ff78]">{phase === 'running' ? <><Activity className="animate-pulse" /> Analyzing chain…</> : phase === 'complete' ? <><CheckCircle2 /> Cycle complete</> : <><Play className="fill-current" /> Run protection cycle</>}</Button>
             {cycleError ? <p role="alert" className="mt-3 text-center text-xs leading-5 text-[#ff8d7c]">{cycleError}</p> : <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#646c77]"><LockKeyhole className="size-3" /> Deterministic selector controls price and contracts</p>}
           </aside>
@@ -293,6 +305,27 @@ export default function Home() {
           </div>
           {receiptOpen && cycle ? <pre className="max-h-80 overflow-auto border-t border-white/[0.06] bg-[#050607] p-4 font-mono text-[10px] leading-5 text-[#8d96a3]">{JSON.stringify(cycle, null, 2)}</pre> : null}
           <button onClick={() => setReceiptOpen((open) => !open)} disabled={!cycle} className="flex w-full items-center justify-center gap-1 border-t border-white/[0.06] py-2.5 text-[11px] text-[#69717c] transition hover:bg-white/[0.02] hover:text-[#aeb5bf] disabled:cursor-not-allowed disabled:opacity-40">{receiptOpen ? 'Close' : 'Open'} machine-readable receipt <ChevronRight className={`size-3 transition ${receiptOpen ? 'rotate-90' : ''}`} /></button>
+        </section>
+
+        <section className="panel mt-4 overflow-hidden" aria-labelledby="broker-proof-title">
+          <div className="flex flex-col gap-2 border-b border-white/[0.07] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div><p className="eyebrow">Verified broker execution</p><h2 id="broker-proof-title" className="mt-1 text-lg font-semibold">Two Alpaca Paper orders accepted</h2></div>
+            <p className="text-xs text-[#737b87]">Canceled after verification · 0 contracts filled</p>
+          </div>
+          <div className="divide-y divide-white/[0.06]">
+            {[
+              { scenario: '5% QQQ drop', spread: 'Buy 681P · Sell 666P', debit: '$0.27', order: '95c4b8e8…cf99' },
+              { scenario: '8% QQQ drop', spread: 'Buy 660P · Sell 645P', debit: '$0.12', order: '77359dc5…6260' },
+            ].map((test) => (
+              <div key={test.order} className="grid gap-2 px-4 py-3.5 text-xs sm:grid-cols-[150px_1fr_100px_180px_auto] sm:items-center sm:px-5">
+                <span className="font-medium text-[#dfe3e8]">{test.scenario}</span>
+                <span className="text-[#7d8590]">{test.spread}</span>
+                <span className="font-mono text-[#d7ff45]">{test.debit}</span>
+                <span className="font-mono text-[#7d8590]">{test.order}</span>
+                <span className="justify-self-start rounded bg-[#d7ff45]/[0.08] px-2 py-1 font-mono text-[9px] text-[#d7ff45] sm:justify-self-end">ACCEPTED → CANCELED</span>
+              </div>
+            ))}
+          </div>
         </section>
 
         <footer className="flex flex-col justify-between gap-2 px-1 pb-2 pt-4 text-[10px] uppercase tracking-[.14em] text-[#414852] sm:flex-row"><span>Paper trading only · Not investment advice</span><span>Powered by Alpaca Trading API + MCP</span></footer>

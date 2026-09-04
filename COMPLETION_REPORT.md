@@ -25,14 +25,16 @@
 - Options permission: level 3.
 - Read-only market-data access: QQQ equity snapshot and 1,000-option snapshot page verified.
 - Application API: live Paper connection verified locally and in production.
+- Broker execution: two defined risk multi leg Paper orders returned `accepted` from Alpaca, with maximum premiums of $27 and $12.
+- Test cleanup: both accepted orders were canceled before market open and verified with filled quantity 0.
 - Production access remains owner-only while preparing the submission.
 
 ## Submission readiness
 
 - Product title, short description, long description, tags, demo URL, demo script, and presentation outline are prepared in `SUBMISSION.md`.
 - A 16:9 submission cover is ready at `submission-assets/TailGuard_AI_Cover.png`.
-- A five-slide pitch deck is ready at `submission-assets/TailGuard_AI_Pitch_Deck.pptx`.
-- A narrated 75-second, 720p MP4 is ready at `submission-assets/TailGuard_AI_Demo_Video.mp4`.
+- A polished six-slide pitch deck with the concrete user flow and broker evidence is ready at `submission-assets/TailGuard_AI_Pitch_Deck_v2.pptx`.
+- A narrated 78-second, 720p MP4 matching the revised deck is ready at `submission-assets/TailGuard_AI_Demo_Video_v2.mp4`.
 - The deck passed package-integrity, slide-count, font, layout, and Artifact Tool re-import validation; all five rendered slides were visually inspected.
 - Remaining user-owned inputs are a public GitHub URL and a hosted URL for the prepared video.
 - The deployed demo is currently owner-only and must be changed to public before judges can open it.

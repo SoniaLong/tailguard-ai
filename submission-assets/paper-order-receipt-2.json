@@ -1,0 +1,222 @@
+{
+  "status": "submitted",
+  "executionEnabled": true,
+  "receiptId": "tg_20260904085102_00660000",
+  "generatedAt": "2026-09-04T08:51:02.216Z",
+  "account": {
+    "status": "ACTIVE",
+    "equity": 100000,
+    "buyingPower": 399892,
+    "tradingBlocked": false,
+    "positionCount": 0
+  },
+  "market": {
+    "isOpen": false,
+    "nextOpen": "2026-09-04T21:30:00+08:00",
+    "nextClose": "2026-09-05T04:00:00+08:00",
+    "underlying": "QQQ",
+    "spot": 717.22,
+    "priceTimestamp": "2026-09-03T20:40:38.902352153Z",
+    "feed": "IEX equities + indicative options"
+  },
+  "proposal": {
+    "strategy": "QQQ put debit spread",
+    "expiration": "2026-09-11",
+    "long": {
+      "symbol": "QQQ260911P00660000",
+      "strike": 660,
+      "expiration": "2026-09-11",
+      "bid": 0.24,
+      "ask": 0.26,
+      "delta": -0.0209
+    },
+    "short": {
+      "symbol": "QQQ260911P00645000",
+      "strike": 645,
+      "expiration": "2026-09-11",
+      "bid": 0.14,
+      "ask": 0.21,
+      "delta": -0.0134
+    },
+    "netDebit": 0.12,
+    "cost": 12,
+    "width": 15,
+    "maxProtection": 1488,
+    "contracts": 1
+  },
+  "gates": [
+    {
+      "name": "Defined risk only",
+      "passed": true,
+      "detail": "$15 vertical; no naked short leg"
+    },
+    {
+      "name": "Live quote integrity",
+      "passed": true,
+      "detail": "Long-leg spread 7.7%"
+    },
+    {
+      "name": "Premium budget",
+      "passed": true,
+      "detail": "$12 of $100"
+    },
+    {
+      "name": "Expiry window",
+      "passed": true,
+      "detail": "2026-09-11 · policy 7–30 DTE"
+    },
+    {
+      "name": "Paper account",
+      "passed": true,
+      "detail": "ACTIVE · unblocked"
+    }
+  ],
+  "audit": {
+    "mandate": "Test a second Paper hedge for an eight percent QQQ selloff. Cap premium at one hundred dollars and use one defined risk spread.",
+    "shockPercent": 8,
+    "maxHedgeCost": 100,
+    "targetStrike": 659.84,
+    "scannedContracts": 927,
+    "evaluatedCandidates": 715,
+    "chainTruncated": true,
+    "orderPayload": {
+      "order_class": "mleg",
+      "qty": "1",
+      "type": "limit",
+      "time_in_force": "day",
+      "limit_price": "0.12",
+      "legs": [
+        {
+          "symbol": "QQQ260911P00660000",
+          "side": "buy",
+          "ratio_qty": "1",
+          "position_intent": "buy_to_open"
+        },
+        {
+          "symbol": "QQQ260911P00645000",
+          "side": "sell",
+          "ratio_qty": "1",
+          "position_intent": "sell_to_open"
+        }
+      ]
+    },
+    "orderSubmitted": true,
+    "reason": "Alpaca Paper accepted order 77359dc5-9cd4-4daf-9c27-1f9ab99f6260 with status accepted.",
+    "brokerOrder": {
+      "id": "77359dc5-9cd4-4daf-9c27-1f9ab99f6260",
+      "client_order_id": "tg_20260904085102_00660000",
+      "created_at": "2026-09-04T08:51:04.088659949Z",
+      "updated_at": "2026-09-04T08:51:04.0899878Z",
+      "submitted_at": "2026-09-04T08:51:04.088659949Z",
+      "filled_at": null,
+      "expired_at": null,
+      "canceled_at": null,
+      "failed_at": null,
+      "replaced_at": null,
+      "replaced_by": null,
+      "replaces": null,
+      "asset_id": "",
+      "symbol": "",
+      "asset_class": "",
+      "notional": null,
+      "qty": "1",
+      "filled_qty": "0",
+      "filled_avg_price": null,
+      "order_class": "mleg",
+      "order_type": "limit",
+      "type": "limit",
+      "side": "",
+      "time_in_force": "day",
+      "limit_price": "0.12",
+      "stop_price": null,
+      "status": "accepted",
+      "extended_hours": false,
+      "legs": [
+        {
+          "id": "2e536d02-901d-4946-a17d-23bb60d78ac0",
+          "client_order_id": "554a3ec8-d4ca-424f-b6e6-9566b4e9f3b8",
+          "created_at": "2026-09-04T08:51:04.088659949Z",
+          "updated_at": "2026-09-04T08:51:04.090003924Z",
+          "submitted_at": "2026-09-04T08:51:04.088659949Z",
+          "filled_at": null,
+          "expired_at": null,
+          "canceled_at": null,
+          "failed_at": null,
+          "replaced_at": null,
+          "replaced_by": null,
+          "replaces": null,
+          "asset_id": "091b98a8-c125-4a45-99c9-77bc8c5d38ac",
+          "symbol": "QQQ260911P00660000",
+          "asset_class": "us_option",
+          "notional": null,
+          "qty": "1",
+          "filled_qty": "0",
+          "filled_avg_price": null,
+          "order_class": "mleg",
+          "order_type": "limit",
+          "type": "limit",
+          "side": "buy",
+          "position_intent": "buy_to_open",
+          "time_in_force": "day",
+          "limit_price": null,
+          "stop_price": null,
+          "status": "accepted",
+          "extended_hours": false,
+          "legs": null,
+          "trail_percent": null,
+          "trail_price": null,
+          "hwm": null,
+          "subtag": null,
+          "source": null,
+          "expires_at": "2026-09-04T20:15:00Z",
+          "ratio_qty": "1"
+        },
+        {
+          "id": "65b3c6eb-f842-4dea-a9d9-031216ebbbfe",
+          "client_order_id": "072c466d-e930-491d-aa1a-0647150f3041",
+          "created_at": "2026-09-04T08:51:04.088659949Z",
+          "updated_at": "2026-09-04T08:51:04.090021601Z",
+          "submitted_at": "2026-09-04T08:51:04.088659949Z",
+          "filled_at": null,
+          "expired_at": null,
+          "canceled_at": null,
+          "failed_at": null,
+          "replaced_at": null,
+          "replaced_by": null,
+          "replaces": null,
+          "asset_id": "2680d108-67d2-4dfb-8794-bacd87ddf0a6",
+          "symbol": "QQQ260911P00645000",
+          "asset_class": "us_option",
+          "notional": null,
+          "qty": "1",
+          "filled_qty": "0",
+          "filled_avg_price": null,
+          "order_class": "mleg",
+          "order_type": "limit",
+          "type": "limit",
+          "side": "sell",
+          "position_intent": "sell_to_open",
+          "time_in_force": "day",
+          "limit_price": null,
+          "stop_price": null,
+          "status": "accepted",
+          "extended_hours": false,
+          "legs": null,
+          "trail_percent": null,
+          "trail_price": null,
+          "hwm": null,
+          "subtag": null,
+          "source": null,
+          "expires_at": "2026-09-04T20:15:00Z",
+          "ratio_qty": "1"
+        }
+      ],
+      "trail_percent": null,
+      "trail_price": null,
+      "hwm": null,
+      "subtag": null,
+      "source": null,
+      "expires_at": "2026-09-04T20:15:00Z"
+    }
+  }
+}

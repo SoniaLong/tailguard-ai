@@ -26,6 +26,18 @@ async function alpacaJson<T>(url: string, headers: Record<string, string>): Prom
   return response.json() as Promise<T>;
 }
 
+async function submitPaperOrder<T>(url: string, headers: Record<string, string>, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  });
+  const payload = await response.json() as T & { message?: string; code?: number };
+  if (!response.ok) throw new Error(`Alpaca order rejected (${response.status}): ${payload.message ?? 'unknown reason'}`);
+  return payload;
+}
+
 function optionLeg(symbol: string, snapshot: Snapshot): OptionLeg | null {
   const match = symbol.match(/^QQQ(\d{6})P(\d{8})$/);
   const bid = Number(snapshot.latestQuote?.bp);
@@ -47,7 +59,7 @@ export async function POST(request: Request) {
   const secret = process.env.ALPACA_SECRET_KEY;
   if (!key || !secret) return Response.json({ error: 'Alpaca Paper is not configured.' }, { status: 503 });
 
-  let input: { shockPercent?: number; maxHedgeCost?: number; mandate?: string };
+  let input: { shockPercent?: number; maxHedgeCost?: number; mandate?: string; confirmPaperOrder?: boolean };
   try {
     input = await request.json() as typeof input;
   } catch {
@@ -115,9 +127,26 @@ export async function POST(request: Request) {
     };
     const executionEnabled = process.env.ALLOW_PAPER_EXECUTION === 'true';
     const receiptId = `tg_${now.toISOString().replace(/\D/g, '').slice(0, 14)}_${winner.long.symbol.slice(-8)}`;
+    const accountReady = account.status === 'ACTIVE' && !account.trading_blocked;
+    const allGatesPassed = winner.debit * 100 <= budget && accountReady;
+    const shouldSubmit = executionEnabled && input.confirmPaperOrder === true && allGatesPassed;
+    const brokerOrder = shouldSubmit
+      ? await submitPaperOrder<{
+          id: string;
+          client_order_id?: string;
+          status: string;
+          created_at?: string;
+          submitted_at?: string;
+          filled_at?: string | null;
+          filled_qty?: string;
+          limit_price?: string;
+          order_class?: string;
+          legs?: Array<{ id?: string; symbol?: string; side?: string; status?: string }>;
+        }>(`${PAPER_BASE}/v2/orders`, headers, { ...orderPayload, client_order_id: receiptId })
+      : null;
 
     return Response.json({
-      status: 'staged',
+      status: brokerOrder ? 'submitted' : 'staged',
       executionEnabled,
       receiptId,
       generatedAt: now.toISOString(),
@@ -153,7 +182,7 @@ export async function POST(request: Request) {
         { name: 'Live quote integrity', passed: true, detail: `Long-leg spread ${(winner.spreadRatio * 100).toFixed(1)}%` },
         { name: 'Premium budget', passed: winner.debit * 100 <= budget, detail: `$${Math.round(winner.debit * 100)} of $${budget}` },
         { name: 'Expiry window', passed: true, detail: `${winner.long.expiration} · policy 7–30 DTE` },
-        { name: 'Paper account', passed: account.status === 'ACTIVE' && !account.trading_blocked, detail: `${account.status ?? 'UNKNOWN'} · ${account.trading_blocked ? 'blocked' : 'unblocked'}` },
+        { name: 'Paper account', passed: accountReady, detail: `${account.status ?? 'UNKNOWN'} · ${account.trading_blocked ? 'blocked' : 'unblocked'}` },
       ],
       audit: {
         mandate: input.mandate.trim(),
@@ -164,8 +193,13 @@ export async function POST(request: Request) {
         evaluatedCandidates: candidates.length,
         chainTruncated: Boolean(chain.next_page_token),
         orderPayload,
-        orderSubmitted: false,
-        reason: executionEnabled ? 'Order prepared; submission still requires an explicit confirmed action.' : 'ALLOW_PAPER_EXECUTION is false.',
+        orderSubmitted: Boolean(brokerOrder),
+        reason: brokerOrder
+          ? `Alpaca Paper accepted order ${brokerOrder.id} with status ${brokerOrder.status}.`
+          : executionEnabled
+            ? 'Order prepared; submit only with confirmPaperOrder=true.'
+            : 'ALLOW_PAPER_EXECUTION is false.',
+        brokerOrder,
       },
     });
   } catch (error) {
