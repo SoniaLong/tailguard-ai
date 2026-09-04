@@ -32,7 +32,8 @@
 - Product title, short description, long description, tags, demo URL, demo script, and presentation outline are prepared in `SUBMISSION.md`.
 - A 16:9 submission cover is ready at `submission-assets/TailGuard_AI_Cover.png`.
 - A five-slide pitch deck is ready at `submission-assets/TailGuard_AI_Pitch_Deck.pptx`.
+- A narrated 75-second, 720p MP4 is ready at `submission-assets/TailGuard_AI_Demo_Video.mp4`.
 - The deck passed package-integrity, slide-count, font, layout, and Artifact Tool re-import validation; all five rendered slides were visually inspected.
-- Remaining user-owned inputs are a public GitHub URL and a narrated video URL.
+- Remaining user-owned inputs are a public GitHub URL and a hosted URL for the prepared video.
 - The deployed demo is currently owner-only and must be changed to public before judges can open it.
 - Final lablab.ai submission has not been sent.

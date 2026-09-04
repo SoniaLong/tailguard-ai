@@ -52,10 +52,11 @@ Add the public GitHub repository URL here after publishing the repository.
 
 - Cover image: `submission-assets/TailGuard_AI_Cover.png`
 - Pitch deck: `submission-assets/TailGuard_AI_Pitch_Deck.pptx`
+- Narrated demo video: `submission-assets/TailGuard_AI_Demo_Video.mp4`
 
 ## Submission assets still requiring user-owned input
 
 - A public GitHub repository URL.
-- A short video presentation URL.
+- Upload the prepared demo video and paste its public URL.
 - Change the deployed demo audience from owner-only to public.
 - Upload the prepared deck and cover image to lablab.ai.
