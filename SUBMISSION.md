@@ -48,9 +48,14 @@ Add the public GitHub repository URL here after publishing the repository.
 4. Demo — run a live protection cycle.
 5. Safety and business value — fail-closed execution with auditable controls.
 
+## Prepared visual assets
+
+- Cover image: `submission-assets/TailGuard_AI_Cover.png`
+- Pitch deck: `submission-assets/TailGuard_AI_Pitch_Deck.pptx`
+
 ## Submission assets still requiring user-owned input
 
 - A public GitHub repository URL.
 - A short video presentation URL.
-- A slide presentation URL or uploaded deck.
-- A cover image uploaded to lablab.ai.
+- Change the deployed demo audience from owner-only to public.
+- Upload the prepared deck and cover image to lablab.ai.
