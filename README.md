@@ -6,9 +6,9 @@ TailGuard is an autonomous options-insurance agent for the Alpaca AI Trading Age
 
 1. Set a downside scenario and premium budget.
 2. TailGuard parses the mandate and scores current catalyst risk.
-3. The deterministic optimizer searches the Alpaca options chain.
+3. The deterministic optimizer searches the live Alpaca indicative options chain.
 4. Policy gates reject naked risk, poor liquidity, budget breaches, and invalid expiries.
-5. The winning put debit spread is staged for Alpaca Paper execution.
+5. The winning put debit spread is converted into an Alpaca multi-leg Paper order payload, but not submitted.
 6. The dashboard shows the before/after loss profile and audit receipt.
 
 ## Safety boundary
@@ -29,10 +29,10 @@ npm install
 npm run dev
 ```
 
-Copy `.env.example` to `.env.local` only when connecting the dedicated Alpaca Paper account. The hosted public demo intentionally runs in replay mode and never exposes broker credentials.
+Copy `.env.example` to `.env.local` only when connecting the dedicated Alpaca Paper account. Hosted credentials are encrypted runtime secrets and never reach the browser. `ALLOW_PAPER_EXECUTION=false` keeps the submission build in staging-only mode.
 
 ## Submission architecture
 
-`Portfolio + news + options chain → mandate interpreter → deterministic hedge optimizer → policy gates → Alpaca Paper order → audit receipt`
+`Account + positions + stock snapshot + options chain → mandate parser → deterministic hedge optimizer → policy gates → staged Alpaca Paper order payload → audit receipt`
 
 Paper trading is a simulation and TailGuard is not investment advice.

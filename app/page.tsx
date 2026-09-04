@@ -34,7 +34,7 @@ const positions = [
   { symbol: 'CASH', allocation: 10, color: '#69717f' },
 ];
 
-const gates = [
+const fallbackGates = [
   ['Defined risk only', 'No naked short legs'],
   ['Liquidity', 'Spread 4.8% · OI 12.4k'],
   ['Premium budget', '$286 of $350'],
@@ -44,6 +44,39 @@ const gates = [
 function money(value: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 }
+
+type CycleResult = {
+  status: 'staged';
+  executionEnabled: boolean;
+  receiptId: string;
+  generatedAt: string;
+  account: { status: string; equity: number; buyingPower: number; tradingBlocked: boolean; positionCount: number };
+  market: { isOpen: boolean; nextOpen?: string; underlying: string; spot: number; priceTimestamp?: string; feed: string };
+  proposal: {
+    strategy: string;
+    expiration: string;
+    long: { symbol: string; strike: number; bid: number; ask: number; delta: number | null };
+    short: { symbol: string; strike: number; bid: number; ask: number; delta: number | null };
+    netDebit: number;
+    cost: number;
+    width: number;
+    maxProtection: number;
+    contracts: number;
+  };
+  gates: Array<{ name: string; passed: boolean; detail: string }>;
+  audit: {
+    mandate: string;
+    shockPercent: number;
+    maxHedgeCost: number;
+    targetStrike: number;
+    scannedContracts: number;
+    evaluatedCandidates: number;
+    chainTruncated: boolean;
+    orderPayload: unknown;
+    orderSubmitted: false;
+    reason: string;
+  };
+};
 
 function ProtectionChart({ shock, budget }: { shock: number; budget: number }) {
   const floorLift = Math.min(1100, budget * 2.8);
@@ -85,10 +118,12 @@ function ProtectionChart({ shock, budget }: { shock: number; budget: number }) {
 export default function Home() {
   const [shock, setShock] = useState(5);
   const [budget, setBudget] = useState(350);
-  const [autopilot, setAutopilot] = useState(true);
   const [phase, setPhase] = useState<'ready' | 'running' | 'complete'>('ready');
   const [mandate, setMandate] = useState('Keep my modeled 5% selloff loss below $2,000. Spend no more than $350 on protection.');
   const [connection, setConnection] = useState({ configured: false, equity: 100000 });
+  const [cycle, setCycle] = useState<CycleResult | null>(null);
+  const [cycleError, setCycleError] = useState('');
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
   const metrics = useMemo(() => {
     const loss = shock * 860;
@@ -103,12 +138,36 @@ export default function Home() {
     { label: 'Hedge budget', value: money(budget), detail: '0.35% of equity', Icon: CircleDollarSign, color: 'text-[#9bacff]' },
   ];
 
-  const ledgerRows: Array<{ Icon: LucideIcon; time: string; title: string; detail: string; status: string }> = [
-    { Icon: Clock3, time: '14:27:04', title: 'Mandate parsed', detail: `Stress −${shock}% · loss ceiling $2,000 · budget ${money(budget)}`, status: 'SCHEMA VALID' },
-    { Icon: Newspaper, time: '14:27:05', title: 'Catalyst scenario scored', detail: 'Export guidance · QQQ downside · confidence 0.81', status: 'EVIDENCE 3/3' },
-    { Icon: TriangleAlert, time: '14:27:06', title: '12 candidates rejected', detail: 'Wide spread, low OI, budget breach, expiry mismatch', status: 'FAIL CLOSED' },
-    { Icon: FileCheck2, time: '14:27:07', title: 'Trade intent authorized', detail: 'QQQ 575/565 put spread · debit $2.86 · qty 1', status: phase === 'complete' ? 'PAPER ORDER SENT' : 'AWAITING CYCLE' },
+  const eventTime = cycle ? new Date(cycle.generatedAt).toLocaleTimeString('en-US', { hour12: false }) : '--:--:--';
+  const ledgerRows: Array<{ Icon: LucideIcon; time: string; title: string; detail: string; status: string }> = cycle ? [
+    { Icon: Clock3, time: eventTime, title: 'Mandate validated', detail: `Stress −${shock}% · budget ${money(budget)}`, status: 'SCHEMA VALID' },
+    { Icon: Activity, time: eventTime, title: 'Live Alpaca data read', detail: `QQQ ${money(cycle.market.spot)} · ${cycle.market.feed}`, status: cycle.market.isOpen ? 'MARKET OPEN' : 'MARKET CLOSED' },
+    { Icon: TriangleAlert, time: eventTime, title: 'Candidates screened', detail: `${cycle.audit.scannedContracts} contracts · ${cycle.audit.evaluatedCandidates} valid spreads`, status: 'FAIL-CLOSED GATES' },
+    { Icon: FileCheck2, time: eventTime, title: 'Paper order staged', detail: `${cycle.proposal.long.symbol} / ${cycle.proposal.short.symbol} · debit $${cycle.proposal.netDebit.toFixed(2)}`, status: 'NOT SUBMITTED' },
+  ] : [
+    { Icon: Clock3, time: '--:--:--', title: 'Mandate ready', detail: `Stress −${shock}% · budget ${money(budget)}`, status: 'AWAITING CYCLE' },
   ];
+
+  async function requestCycle(parameters = { shockPercent: shock, maxHedgeCost: budget, mandate }) {
+    setPhase('running');
+    setCycleError('');
+    const response = await fetch('/api/alpaca/cycle', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(parameters),
+    });
+    const payload = await response.json() as CycleResult | { error?: string };
+    if (!response.ok || !('proposal' in payload)) {
+      const message = 'error' in payload && payload.error ? payload.error : 'Protection cycle failed closed.';
+      setCycleError(message);
+      setPhase('ready');
+      throw new Error(message);
+    }
+    setCycle(payload);
+    setConnection({ configured: true, equity: payload.account.equity });
+    setPhase('complete');
+    return payload;
+  }
 
   useEffect(() => {
     type WebMcpContext = {
@@ -141,21 +200,23 @@ export default function Home() {
         setShock(Math.round(candidate.shockPercent));
         setBudget(Math.round(candidate.maxHedgeCost / 25) * 25);
         setMandate(candidate.mandate);
-        setPhase('running');
-        await new Promise((resolve) => window.setTimeout(resolve, 1100));
-        setPhase('complete');
-        return { status: 'paper_cycle_complete', hedge: 'QQQ 575/565 put debit spread', policyGatesPassed: 4 };
+        const result = await requestCycle({
+          shockPercent: Math.round(candidate.shockPercent),
+          maxHedgeCost: Math.round(candidate.maxHedgeCost / 25) * 25,
+          mandate: candidate.mandate,
+        });
+        return { status: result.status, receiptId: result.receiptId, hedge: result.proposal.strategy, policyGatesPassed: result.gates.filter((gate) => gate.passed).length, orderSubmitted: false };
       },
     }, { signal: lifecycle.signal })).catch(() => undefined);
 
     return () => lifecycle.abort();
-  }, []);
+  }, [budget, mandate, shock]);
 
   useEffect(() => {
     const controller = new AbortController();
     void fetch('/api/alpaca/status', { signal: controller.signal })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('status unavailable')))
-      .then((status: { configured?: boolean; equity?: number }) => setConnection({
+      .then((response) => response.ok ? response.json() as Promise<{ configured?: boolean; equity?: number }> : Promise.reject(new Error('status unavailable')))
+      .then((status) => setConnection({
         configured: Boolean(status.configured),
         equity: Number(status.equity) || 100000,
       }))
@@ -164,9 +225,14 @@ export default function Home() {
   }, []);
 
   function runCycle() {
-    setPhase('running');
-    window.setTimeout(() => setPhase('complete'), 1100);
+    void requestCycle().catch(() => undefined);
   }
+
+  const proposal = cycle?.proposal;
+  const gateRows = cycle?.gates ?? fallbackGates.map(([name, detail]) => ({ name, detail, passed: true }));
+  const longLabel = proposal ? `QQQ ${proposal.long.strike}P` : 'Run a live cycle';
+  const shortLabel = proposal ? `QQQ ${proposal.short.strike}P` : 'Awaiting selection';
+  const expiryLabel = proposal ? new Date(`${proposal.expiration}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).toUpperCase() : '7–30 DTE';
 
   return (
     <main className="min-h-screen bg-[#08090b] text-[#f3f5f7] selection:bg-[#d7ff45] selection:text-black">
@@ -193,9 +259,9 @@ export default function Home() {
               <div><div className="mb-3 flex items-center justify-between text-sm"><span className="text-[#a8afb9]">Maximum hedge cost</span><span className="font-mono text-[#d7ff45]">{money(budget)}</span></div><Slider min={100} max={800} step={25} value={[budget]} onValueChange={(value) => setBudget(Number(value))} className="[&_[data-slot=slider-range]]:bg-[#d7ff45]" /><div className="mt-2 flex justify-between font-mono text-[10px] text-[#555c67]"><span>$100</span><span>$800</span></div></div>
             </div>
             <div className="my-5 h-px bg-white/[0.07]" />
-            <div className="flex items-center justify-between"><div><p className="text-sm font-medium">Autonomous execution</p><p className="mt-1 text-xs text-[#737b87]">Paper account only</p></div><Switch checked={autopilot} onCheckedChange={setAutopilot} className="data-checked:bg-[#d7ff45]" /></div>
+            <div className="flex items-center justify-between"><div><p className="text-sm font-medium">Execution safeguard</p><p className="mt-1 text-xs text-[#737b87]">Stage only · no order submission</p></div><Switch checked={false} disabled aria-label="Paper execution disabled" className="data-checked:bg-[#d7ff45]" /></div>
             <Button onClick={runCycle} disabled={phase === 'running'} className="mt-5 h-11 w-full bg-[#d7ff45] font-semibold text-[#0a0b0d] hover:bg-[#e3ff78]">{phase === 'running' ? <><Activity className="animate-pulse" /> Analyzing chain…</> : phase === 'complete' ? <><CheckCircle2 /> Cycle complete</> : <><Play className="fill-current" /> Run protection cycle</>}</Button>
-            <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#646c77]"><LockKeyhole className="size-3" /> Model cannot set price, contract, or quantity</p>
+            {cycleError ? <p role="alert" className="mt-3 text-center text-xs leading-5 text-[#ff8d7c]">{cycleError}</p> : <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#646c77]"><LockKeyhole className="size-3" /> Deterministic selector controls price and contracts</p>}
           </aside>
 
           <section className="panel min-w-0 p-4 sm:p-5">
@@ -208,24 +274,25 @@ export default function Home() {
           </section>
 
           <aside className="panel overflow-hidden">
-            <div className="border-b border-white/[0.07] p-4 sm:p-5"><div className="flex items-center justify-between"><div><p className="eyebrow">Selected hedge</p><h2 className="mt-1 text-lg font-semibold">QQQ put debit spread</h2></div><span className="rounded-md border border-[#d7ff45]/25 bg-[#d7ff45]/[0.06] px-2 py-1 font-mono text-[10px] text-[#d7ff45]">READY</span></div></div>
+            <div className="border-b border-white/[0.07] p-4 sm:p-5"><div className="flex items-center justify-between"><div><p className="eyebrow">Selected hedge</p><h2 className="mt-1 text-lg font-semibold">{proposal?.strategy ?? 'Live chain selector'}</h2></div><span className="rounded-md border border-[#d7ff45]/25 bg-[#d7ff45]/[0.06] px-2 py-1 font-mono text-[10px] text-[#d7ff45]">{proposal ? 'STAGED' : 'READY'}</span></div></div>
             <div className="p-4 sm:p-5">
-              <div className="rounded-xl border border-white/[0.07] bg-[#0b0d10] p-3 font-mono text-xs"><div className="flex items-center justify-between border-b border-white/[0.06] pb-3"><div><span className="mr-2 rounded bg-[#d7ff45]/10 px-1.5 py-0.5 text-[9px] text-[#d7ff45]">BUY</span><span className="text-[#dfe3e8]">QQQ 575P</span></div><span className="text-[#838b96]">SEP 18</span></div><div className="flex items-center justify-between pt-3"><div><span className="mr-2 rounded bg-[#ff8d7c]/10 px-1.5 py-0.5 text-[9px] text-[#ff8d7c]">SELL</span><span className="text-[#dfe3e8]">QQQ 565P</span></div><span className="text-[#838b96]">SEP 18</span></div></div>
-              <div className="mt-4 grid grid-cols-2 gap-2">{[['Net debit', '$2.86'], ['Contracts', '1×'], ['Max value', '$1,000'], ['Max protection', '$714']].map(([k, v]) => <div key={k} className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3"><p className="text-[10px] uppercase tracking-wider text-[#656d78]">{k}</p><p className="mt-1.5 font-mono text-sm text-[#dfe3e8]">{v}</p></div>)}</div>
-              <p className="eyebrow mb-3 mt-5">Policy gates · 4/4 passed</p>
-              <div className="space-y-2">{gates.map(([title, detail]) => <div key={title} className="flex items-start gap-2.5 rounded-lg border border-white/[0.05] bg-[#0b0d10]/80 px-3 py-2.5"><span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full bg-[#d7ff45] text-black"><Check className="size-2.5" strokeWidth={3} /></span><div><p className="text-xs text-[#cfd4da]">{title}</p><p className="mt-0.5 text-[10px] text-[#606873]">{detail}</p></div></div>)}</div>
+              <div className="rounded-xl border border-white/[0.07] bg-[#0b0d10] p-3 font-mono text-xs"><div className="flex items-center justify-between border-b border-white/[0.06] pb-3"><div><span className="mr-2 rounded bg-[#d7ff45]/10 px-1.5 py-0.5 text-[9px] text-[#d7ff45]">BUY</span><span className="text-[#dfe3e8]">{longLabel}</span></div><span className="text-[#838b96]">{expiryLabel}</span></div><div className="flex items-center justify-between pt-3"><div><span className="mr-2 rounded bg-[#ff8d7c]/10 px-1.5 py-0.5 text-[9px] text-[#ff8d7c]">SELL</span><span className="text-[#dfe3e8]">{shortLabel}</span></div><span className="text-[#838b96]">{expiryLabel}</span></div></div>
+              <div className="mt-4 grid grid-cols-2 gap-2">{[['Net debit', proposal ? `$${proposal.netDebit.toFixed(2)}` : '—'], ['Contracts', proposal ? `${proposal.contracts}×` : '—'], ['Live QQQ', cycle ? money(cycle.market.spot) : '—'], ['Max protection', proposal ? money(proposal.maxProtection) : '—']].map(([k, v]) => <div key={k} className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3"><p className="text-[10px] uppercase tracking-wider text-[#656d78]">{k}</p><p className="mt-1.5 font-mono text-sm text-[#dfe3e8]">{v}</p></div>)}</div>
+              <p className="eyebrow mb-3 mt-5">Policy gates · {gateRows.filter((gate) => gate.passed).length}/{gateRows.length} passed</p>
+              <div className="space-y-2">{gateRows.map(({ name, detail, passed }) => <div key={name} className="flex items-start gap-2.5 rounded-lg border border-white/[0.05] bg-[#0b0d10]/80 px-3 py-2.5"><span className={`mt-0.5 grid size-4 shrink-0 place-items-center rounded-full ${passed ? 'bg-[#d7ff45] text-black' : 'bg-[#ff8d7c] text-black'}`}><Check className="size-2.5" strokeWidth={3} /></span><div><p className="text-xs text-[#cfd4da]">{name}</p><p className="mt-0.5 text-[10px] text-[#606873]">{detail}</p></div></div>)}</div>
             </div>
           </aside>
         </section>
 
         <section className="panel mt-4 overflow-hidden">
-          <div className="flex flex-col justify-between gap-3 border-b border-white/[0.07] px-4 py-3 sm:flex-row sm:items-center sm:px-5"><div className="flex items-center gap-2"><Radio className="size-3.5 text-[#d7ff45]" /><p className="eyebrow">Agent flight recorder</p><span className="rounded bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9px] text-[#636b76]">IMMUTABLE RECEIPTS</span></div><p className="font-mono text-[10px] text-[#555d68]">cycle_tg_0904_1427</p></div>
+          <div className="flex flex-col justify-between gap-3 border-b border-white/[0.07] px-4 py-3 sm:flex-row sm:items-center sm:px-5"><div className="flex items-center gap-2"><Radio className="size-3.5 text-[#d7ff45]" /><p className="eyebrow">Agent flight recorder</p><span className="rounded bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9px] text-[#636b76]">MACHINE-READABLE RECEIPT</span></div><p className="font-mono text-[10px] text-[#555d68]">{cycle?.receiptId ?? 'awaiting_live_cycle'}</p></div>
           <div className="divide-y divide-white/[0.06]">
             {ledgerRows.map(({ Icon, time, title, detail, status }, index) => (
               <div key={title} className={`grid gap-2 px-4 py-3.5 sm:grid-cols-[32px_72px_180px_1fr_auto] sm:items-center sm:px-5 ${index === 3 && phase === 'complete' ? 'bg-[#d7ff45]/[0.025]' : ''}`}><div className="hidden size-7 place-items-center rounded-lg border border-white/[0.06] bg-white/[0.025] sm:grid"><Icon className="size-3.5 text-[#858d98]" /></div><span className="font-mono text-[10px] text-[#565e69]">{time}</span><span className="text-xs font-medium text-[#cdd2d8]">{title}</span><span className="text-xs text-[#707884]">{detail}</span><span className={`justify-self-start rounded px-2 py-1 font-mono text-[9px] sm:justify-self-end ${status.includes('SENT') || index < 3 ? 'bg-[#d7ff45]/[0.08] text-[#d7ff45]' : 'bg-white/[0.04] text-[#69717c]'}`}>{status}</span></div>
             ))}
           </div>
-          <button className="flex w-full items-center justify-center gap-1 border-t border-white/[0.06] py-2.5 text-[11px] text-[#69717c] transition hover:bg-white/[0.02] hover:text-[#aeb5bf]">Open machine-readable receipt <ChevronRight className="size-3" /></button>
+          {receiptOpen && cycle ? <pre className="max-h-80 overflow-auto border-t border-white/[0.06] bg-[#050607] p-4 font-mono text-[10px] leading-5 text-[#8d96a3]">{JSON.stringify(cycle, null, 2)}</pre> : null}
+          <button onClick={() => setReceiptOpen((open) => !open)} disabled={!cycle} className="flex w-full items-center justify-center gap-1 border-t border-white/[0.06] py-2.5 text-[11px] text-[#69717c] transition hover:bg-white/[0.02] hover:text-[#aeb5bf] disabled:cursor-not-allowed disabled:opacity-40">{receiptOpen ? 'Close' : 'Open'} machine-readable receipt <ChevronRight className={`size-3 transition ${receiptOpen ? 'rotate-90' : ''}`} /></button>
         </section>
 
         <footer className="flex flex-col justify-between gap-2 px-1 pb-2 pt-4 text-[10px] uppercase tracking-[.14em] text-[#414852] sm:flex-row"><span>Paper trading only · Not investment advice</span><span>Powered by Alpaca Trading API + MCP</span></footer>
