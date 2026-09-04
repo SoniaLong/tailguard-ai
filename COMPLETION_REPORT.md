@@ -35,7 +35,8 @@
 - A 16:9 submission cover is ready at `submission-assets/TailGuard_AI_Cover.png`.
 - A polished five-slide pitch deck with the concrete user flow and broker evidence is ready at `submission-assets/TailGuard_AI_Pitch_Deck_v3.pptx`.
 - A slide-by-slide human presentation script is ready at `submission-assets/PRESENTATION_SCRIPT.md`.
-- The AI-narrated video has been removed and will be replaced after the user provides their recording.
+- The final 1080p presentation video uses the user's five recordings, synchronized one recording per slide, and is ready at `submission-assets/TailGuard_AI_Final_Presentation.mp4`.
+- Final video duration is 2 minutes 11 seconds and includes an AAC audio track.
 - The deck passed package-integrity, slide-count, font, layout, and Artifact Tool re-import validation; all five rendered slides were visually inspected.
 - Remaining user-owned inputs are a public GitHub URL and a hosted URL for the prepared video.
 - The deployed demo is currently owner-only and must be changed to public before judges can open it.
