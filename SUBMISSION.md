@@ -51,8 +51,9 @@ Add the public GitHub repository URL here after publishing the repository.
 ## Prepared visual assets
 
 - Cover image: `submission-assets/TailGuard_AI_Cover.png`
-- Pitch deck: `submission-assets/TailGuard_AI_Pitch_Deck_v2.pptx`
-- Narrated demo video: `submission-assets/TailGuard_AI_Demo_Video_v2.mp4`
+- Pitch deck: `submission-assets/TailGuard_AI_Pitch_Deck_v3.pptx`
+- Presentation script: `submission-assets/PRESENTATION_SCRIPT.md`
+- Narrated demo video: pending the user's voice recording
 - Alpaca Paper test report: `submission-assets/PAPER_ORDER_TEST_REPORT.md`
 
 ## Submission assets still requiring user-owned input
